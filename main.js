@@ -56,6 +56,10 @@ async function fetchGasData() {
     const json = await response.json();
     if(json.status === 'success') {
       globalGasData = json.data;
+      postTestUnlocked = json.isUnlocked === true;
+      if (postTestUnlocked) {
+        document.getElementById('tab-post-test').innerHTML = 'หลังเรียน <span class="lock-icon">🔓</span>';
+      }
     } else {
       console.error("GAS Error:", json.message);
     }
@@ -68,6 +72,19 @@ async function fetchGasData() {
 function setupTabs() {
   tabs.forEach(tab => {
     tab.addEventListener('click', async () => {
+      const target = tab.getAttribute('data-target');
+      
+      if(target === 'post-test') {
+        // Fetch to check unlock status first
+        Swal.fire({ title: 'กำลังตรวจสอบสถานะ', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+        await fetchGasData();
+        Swal.close();
+        if(!isPostTestUnlocked()) {
+          Swal.fire('ถูกล็อค', 'กรุณาให้ Admin ปลดล็อคแท็บหลังเรียนก่อน', 'warning');
+          return;
+        }
+      }
+
       if(tab.id === 'tab-post-test' && !isPostTestUnlocked()) {
         Swal.fire('ถูกล็อค', 'กรุณาให้ Admin ปลดล็อคแท็บหลังเรียนก่อน', 'warning');
         return;
@@ -84,26 +101,21 @@ function setupTabs() {
         }).then(async (result) => {
           if (result.isConfirmed) {
             endTestEarly();
-            await processTabSwitch(tab);
+            await processTabSwitch(tab, target);
           }
         });
       } else {
-        await processTabSwitch(tab);
+        await processTabSwitch(tab, target);
       }
     });
   });
 }
 
-async function processTabSwitch(tab) {
-  const target = tab.getAttribute('data-target');
+async function processTabSwitch(tab, targetParam) {
+  const target = targetParam || tab.getAttribute('data-target');
   
-  // If navigating to post-test or results, fetch fresh data
-  if(target === 'post-test' || target === 'results') {
-    Swal.fire({
-      title: 'กำลังโหลดข้อมูล',
-      allowOutsideClick: false,
-      didOpen: () => { Swal.showLoading(); }
-    });
+  if(target === 'results') {
+    Swal.fire({ title: 'กำลังโหลดข้อมูล', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
     await fetchGasData();
     Swal.close();
   }
@@ -122,14 +134,28 @@ async function processTabSwitch(tab) {
 
 // Admin logic
 const unlockBtn = document.getElementById('unlock-btn');
-unlockBtn.addEventListener('click', () => {
+unlockBtn.addEventListener('click', async () => {
   const pwd = document.getElementById('admin-pwd').value;
   if(pwd === 'admin1234') { 
-    postTestUnlocked = true;
-    document.getElementById('admin-login').classList.add('hidden');
-    document.getElementById('admin-dashboard').classList.remove('hidden');
-    document.getElementById('tab-post-test').innerHTML = 'หลังเรียน <span class="lock-icon">🔓</span>';
-    Swal.fire('สำเร็จ', 'ปลดล็อคแท็บหลังเรียนเรียบร้อยแล้ว', 'success');
+    Swal.fire({
+      title: 'กำลังปลดล็อค',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+    
+    const data = new FormData();
+    data.append('action', 'unlock');
+    
+    try {
+      await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: data });
+      postTestUnlocked = true;
+      document.getElementById('admin-login').classList.add('hidden');
+      document.getElementById('admin-dashboard').classList.remove('hidden');
+      document.getElementById('tab-post-test').innerHTML = 'หลังเรียน <span class="lock-icon">🔓</span>';
+      Swal.fire('สำเร็จ', 'ปลดล็อคแท็บหลังเรียนให้ผู้สอบทุกคนแล้ว!', 'success');
+    } catch(err) {
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+    }
   } else {
     Swal.fire('ข้อผิดพลาด', 'รหัสผ่านไม่ถูกต้อง', 'error');
   }
