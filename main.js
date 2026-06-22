@@ -26,10 +26,12 @@ let preTestTime = 8 * 60; // 8 minutes
 let timerInterval;
 let postTestUnlocked = false;
 
+// Global Data Cache (fetched from GAS)
+let globalGasData = [];
+
 // Initialize
 function init() {
   setupTabs();
-  loadPostTestNames();
   
   // Anti-cheat
   document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -47,10 +49,25 @@ function shuffle(array) {
   return array;
 }
 
+// Data Fetching
+async function fetchGasData() {
+  try {
+    const response = await fetch(GAS_URL);
+    const json = await response.json();
+    if(json.status === 'success') {
+      globalGasData = json.data;
+    } else {
+      console.error("GAS Error:", json.message);
+    }
+  } catch(error) {
+    console.error("Fetch Error:", error);
+  }
+}
+
 // Tabs Logic
 function setupTabs() {
   tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
+    tab.addEventListener('click', async () => {
       if(tab.id === 'tab-post-test' && !isPostTestUnlocked()) {
         Swal.fire('ถูกล็อค', 'กรุณาให้ Admin ปลดล็อคแท็บหลังเรียนก่อน', 'warning');
         return;
@@ -64,28 +81,42 @@ function setupTabs() {
           showCancelButton: true,
           confirmButtonText: 'แน่ใจ',
           cancelButtonText: 'ยกเลิก'
-        }).then((result) => {
+        }).then(async (result) => {
           if (result.isConfirmed) {
             endTestEarly();
-            switchTab(tab);
+            await processTabSwitch(tab);
           }
         });
       } else {
-        switchTab(tab);
-        if(tab.getAttribute('data-target') === 'results') {
-           updateResultsDisplay();
-        }
+        await processTabSwitch(tab);
       }
     });
   });
 }
 
-function switchTab(selectedTab) {
+async function processTabSwitch(tab) {
+  const target = tab.getAttribute('data-target');
+  
+  // If navigating to post-test or results, fetch fresh data
+  if(target === 'post-test' || target === 'results') {
+    Swal.fire({
+      title: 'กำลังโหลดข้อมูล',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+    await fetchGasData();
+    Swal.close();
+  }
+
+  if(target === 'post-test') {
+    populatePostTestNames();
+  } else if (target === 'results') {
+    updateResultsDisplay();
+  }
+
   tabs.forEach(t => t.classList.remove('active'));
   contents.forEach(c => c.classList.remove('active'));
-  
-  selectedTab.classList.add('active');
-  const target = selectedTab.getAttribute('data-target');
+  tab.classList.add('active');
   document.getElementById(target).classList.add('active');
 }
 
@@ -108,11 +139,17 @@ function isPostTestUnlocked() {
   return postTestUnlocked;
 }
 
-// Load names
-function loadPostTestNames() {
-  const names = JSON.parse(localStorage.getItem('pre_test_names') || '[]');
+// Load names into dropdown
+function populatePostTestNames() {
+  // Extract unique names who took Pre-test
+  const preTestNames = globalGasData
+    .filter(row => row.type === 'Pre-test')
+    .map(row => row.name);
+  
+  const uniqueNames = [...new Set(preTestNames)];
+  
   postNameSelect.innerHTML = '<option value="">-- เลือกชื่อของคุณ --</option>';
-  names.forEach(name => {
+  uniqueNames.forEach(name => {
     const opt = document.createElement('option');
     opt.value = name;
     opt.textContent = name;
@@ -183,23 +220,17 @@ preTestForm.addEventListener('submit', (e) => {
   const name = document.getElementById('pre-name').value.trim();
   const scoreData = calculateScore(formData, 'pre');
   
-  const names = JSON.parse(localStorage.getItem('pre_test_names') || '[]');
-  if(!names.includes(name)) {
-    names.push(name);
-    localStorage.setItem('pre_test_names', JSON.stringify(names));
-    loadPostTestNames();
-  }
+  sendDataToGAS('Pre-test', name, scoreData);
   
-  localStorage.setItem(`pre_score_${name}`, JSON.stringify(scoreData));
-  sendDataToGAS('Pre-test', name, scoreData.total);
-  
-  Swal.fire('สำเร็จ', `คุณได้คะแนน ${scoreData.total}/10`, 'success').then(() => {
+  Swal.fire('สำเร็จ', `คุณได้คะแนน ${scoreData.total}/10`, 'success').then(async () => {
     preTestForm.reset();
     document.getElementById('pre-name').readOnly = false;
     preStartBtn.classList.remove('hidden');
     preTestContainer.classList.add('hidden');
-    switchTab(tabs[2]); // Results
-    updateResultsDisplay(name);
+    
+    // Jump to Results tab and load data
+    await processTabSwitch(tabs[2]); 
+    updateResultsDisplay(name); // show current user detail
   });
 });
 
@@ -224,15 +255,16 @@ postTestForm.addEventListener('submit', (e) => {
   const name = postNameSelect.value;
   const scoreData = calculateScore(formData, 'post');
   
-  localStorage.setItem(`post_score_${name}`, JSON.stringify(scoreData));
-  sendDataToGAS('Post-test', name, scoreData.total);
+  sendDataToGAS('Post-test', name, scoreData);
   
-  Swal.fire('สำเร็จ', `คุณได้คะแนน ${scoreData.total}/10`, 'success').then(() => {
+  Swal.fire('สำเร็จ', `คุณได้คะแนน ${scoreData.total}/10`, 'success').then(async () => {
     postTestForm.reset();
     postNameSelect.disabled = false;
     postStartBtn.classList.remove('hidden');
     postTestContainer.classList.add('hidden');
-    switchTab(tabs[2]); // Results
+    
+    // Jump to Results tab and load data
+    await processTabSwitch(tabs[2]); 
     updateResultsDisplay(name);
   });
 });
@@ -254,17 +286,32 @@ function calculateScore(formData, prefix) {
 // Development % calc
 function calcDev(pre, post) {
   if (pre === '-' || post === '-') return '-';
-  if (pre === 0) {
-    return post > 0 ? 100 : 0; // Special case: pre=0
-  }
+  if (pre == 0) return post > 0 ? 100 : 0;
   return (((post - pre) / pre) * 100).toFixed(1);
+}
+
+// Process data for grouping by name
+function getGroupedData() {
+  const userMap = {};
+  
+  globalGasData.forEach(row => {
+    if(!userMap[row.name]) {
+      userMap[row.name] = { name: row.name, pre: null, post: null };
+    }
+    // Overwrite if they submitted multiple times, taking the latest one 
+    // (since data is sorted chronologically by default in the sheet)
+    if(row.type === 'Pre-test') userMap[row.name].pre = row;
+    if(row.type === 'Post-test') userMap[row.name].post = row;
+  });
+  
+  return Object.values(userMap);
 }
 
 // Update Results and Print Dashboard
 function updateResultsDisplay(currentName = null) {
-  const names = JSON.parse(localStorage.getItem('pre_test_names') || '[]');
+  const groupedData = getGroupedData();
   
-  if (names.length === 0) {
+  if (groupedData.length === 0) {
     document.getElementById('results-display').innerHTML = '<p>ยังไม่มีผู้เข้าสอบ</p>';
     document.getElementById('overall-dashboard').classList.add('hidden');
     document.getElementById('print-btn').classList.add('hidden');
@@ -273,15 +320,17 @@ function updateResultsDisplay(currentName = null) {
 
   // Current User Individual View
   if (currentName) {
-    let preObj = JSON.parse(localStorage.getItem(`pre_score_${currentName}`) || '{"total":"-","p1":"-","p2":"-"}');
-    let postObj = JSON.parse(localStorage.getItem(`post_score_${currentName}`) || '{"total":"-","p1":"-","p2":"-"}');
+    const userRow = groupedData.find(u => u.name === currentName);
+    
+    let preObj = userRow?.pre || {total: '-', p1: '-', p2: '-'};
+    let postObj = userRow?.post || {total: '-', p1: '-', p2: '-'};
     
     let devPercent = calcDev(preObj.total, postObj.total);
     let devText = devPercent !== '-' ? `${devPercent}%` : '-';
     let devColor = devPercent > 0 ? 'var(--success-color)' : (devPercent < 0 ? 'var(--danger-color)' : 'var(--text-color)');
 
     document.getElementById('results-display').innerHTML = `
-      <h3>ผลการทดสอบ: ${currentName}</h3>
+      <h3>ผลการทดสอบล่าสุด: ${currentName}</h3>
       <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
         <tr style="border-bottom: 1px solid var(--glass-border);">
           <th style="padding: 8px; text-align: left;">ส่วนข้อสอบ</th>
@@ -308,33 +357,36 @@ function updateResultsDisplay(currentName = null) {
         <strong>การพัฒนา: </strong> <span style="color: ${devColor}; font-weight: bold;">${devText}</span>
       </div>
     `;
+  } else {
+    document.getElementById('results-display').innerHTML = '<p>เลือกดูผลลัพธ์รายบุคคลจากการส่งข้อสอบ</p>';
   }
 
   // Overall Dashboard & Print Table
   let sumPre = 0, sumPost = 0;
   let printRowsHTML = '';
-  let countCompleted = 0; // count people who did both pre and post
+  let countPre = 0, countCompleted = 0; 
   
-  names.forEach((n, idx) => {
-    let preObj = JSON.parse(localStorage.getItem(`pre_score_${n}`) || '{"total":"-","p1":"-","p2":"-"}');
-    let postObj = JSON.parse(localStorage.getItem(`post_score_${n}`) || '{"total":"-","p1":"-","p2":"-"}');
+  groupedData.forEach((u, idx) => {
+    let preObj = u.pre || {total: '-', p1: '-', p2: '-'};
+    let postObj = u.post || {total: '-', p1: '-', p2: '-'};
     
     let devPercent = calcDev(preObj.total, postObj.total);
     let devText = devPercent !== '-' ? `${devPercent}%` : '-';
     
-    if(preObj.total !== '-' && postObj.total !== '-') {
+    if(preObj.total !== '-') {
       sumPre += parseInt(preObj.total);
-      sumPost += parseInt(postObj.total);
-      countCompleted++;
-    } else if (preObj.total !== '-') {
-      sumPre += parseInt(preObj.total); // Only pre test done
+      countPre++;
+      if(postObj.total !== '-') {
+        sumPost += parseInt(postObj.total);
+        countCompleted++;
+      }
     }
 
     // Build print table row
     printRowsHTML += `
       <tr>
         <td>${idx + 1}</td>
-        <td style="text-align: left;">${n}</td>
+        <td style="text-align: left;">${u.name}</td>
         <td>${preObj.p1}</td>
         <td>${preObj.p2}</td>
         <td>${preObj.total}</td>
@@ -347,16 +399,16 @@ function updateResultsDisplay(currentName = null) {
   });
 
   document.getElementById('print-table-body').innerHTML = printRowsHTML;
-  document.getElementById('print-total-users').textContent = names.length;
+  document.getElementById('print-total-users').textContent = groupedData.length;
 
   document.getElementById('overall-dashboard').classList.remove('hidden');
   document.getElementById('print-btn').classList.remove('hidden');
 
-  let avgPre = (sumPre / names.length).toFixed(1);
+  let avgPre = countPre > 0 ? (sumPre / countPre).toFixed(1) : '0.0';
   let avgPost = countCompleted > 0 ? (sumPost / countCompleted).toFixed(1) : '0.0';
   let overallDev = countCompleted > 0 ? calcDev(avgPre, avgPost) : '-';
   
-  document.getElementById('stat-total-users').textContent = names.length;
+  document.getElementById('stat-total-users').textContent = groupedData.length;
   document.getElementById('stat-avg-pre').textContent = avgPre;
   document.getElementById('stat-avg-post').textContent = avgPost;
   document.getElementById('stat-avg-dev').textContent = overallDev !== '-' ? overallDev + '%' : '-';
@@ -389,11 +441,13 @@ function endTestEarly() {
 }
 
 // Send Data to GAS
-function sendDataToGAS(type, name, score) {
+function sendDataToGAS(type, name, scoreData) {
   const data = new FormData();
   data.append('type', type);
   data.append('name', name);
-  data.append('score', score);
+  data.append('total', scoreData.total);
+  data.append('p1', scoreData.p1);
+  data.append('p2', scoreData.p2);
   data.append('timestamp', new Date().toISOString());
 
   fetch(GAS_URL, {
