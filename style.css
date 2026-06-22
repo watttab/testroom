@@ -327,18 +327,24 @@ footer {
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm;
+  }
   body {
     background: white;
     color: black;
     background-image: none;
     font-family: 'Sarabun', serif;
+    display: block; /* Override flex centering */
+    min-height: auto; /* Override 100vh */
   }
   .glass-container {
     display: none;
   }
   #print-layout {
     display: block;
-    padding: 1cm;
+    padding: 0;
   }
   .print-header {
     text-align: center;

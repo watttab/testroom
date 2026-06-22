@@ -130,10 +130,9 @@ function renderQuestions(container, prefix) {
     let html = `<div class="question-text">${index + 1}. ${q.question.replace(/^\d+\.\s*/, '')}</div><div class="options">`;
     const shuffledOptions = shuffle([...q.options]);
     shuffledOptions.forEach(opt => {
-      const optValue = opt.charAt(0);
       html += `
         <label class="option-label">
-          <input type="radio" name="${prefix}_q_${q.id}" value="${optValue}" required>
+          <input type="radio" name="${prefix}_q_${q.id}" value="${opt}" required>
           <span>${opt}</span>
         </label>
       `;
