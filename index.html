@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nakae Dole Test</title>
+    <!-- Google Fonts for UI (Inter or similar modern font) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Google Fonts for Print (TH Sarabun New or similar) -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <div id="app" class="glass-container">
+      <header>
+        <div class="logo-container">
+          <img src="/logo.png" alt="Nakae Dole Test Logo" class="logo">
+          <h1>Nakae Dole Test</h1>
+        </div>
+        <nav class="tabs">
+          <button class="tab-btn active" data-target="pre-test">ก่อนเรียน</button>
+          <button class="tab-btn" data-target="post-test" id="tab-post-test">หลังเรียน <span class="lock-icon">🔒</span></button>
+          <button class="tab-btn" data-target="results">ประมวลผล</button>
+          <button class="tab-btn" data-target="admin">Admin</button>
+        </nav>
+      </header>
+
+      <main class="content-area">
+        <!-- Pre-test Tab -->
+        <section id="pre-test" class="tab-content active">
+          <div class="intro-box">
+            <h2>แบบทดสอบก่อนรับการอบรม</h2>
+            <p>กรุณากรอกชื่อและนามสกุลของคุณเพื่อเริ่มทำแบบทดสอบ<br><strong>หมายเหตุ:</strong> มีเวลา 8 นาที และห้ามสลับหน้าจอ (ระบบจะจับการทุจริต)</p>
+          </div>
+          <form id="pre-test-form" class="exam-form">
+            <div class="form-group">
+              <label for="pre-name">ชื่อ - นามสกุล</label>
+              <input type="text" id="pre-name" name="name" required placeholder="กรอกชื่อและนามสกุล">
+            </div>
+            <button type="button" id="start-pre-test" class="btn primary">เริ่มทำแบบทดสอบ (8 นาที)</button>
+            <div id="pre-test-container" class="test-container hidden">
+              <div class="timer-bar">เวลาที่เหลือ: <span id="pre-timer">08:00</span></div>
+              <div id="pre-questions" class="questions-list"></div>
+              <button type="submit" class="btn submit-btn">ส่งคำตอบ</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Post-test Tab -->
+        <section id="post-test" class="tab-content">
+          <div class="intro-box">
+            <h2>แบบทดสอบหลังรับการอบรม</h2>
+            <p>เลือกชื่อของคุณที่เคยทำแบบทดสอบก่อนเรียน เพื่อเริ่มทำแบบทดสอบหลังเรียน<br><strong>หมายเหตุ:</strong> ไม่จำกัดเวลา แต่ห้ามสลับหน้าจอ</p>
+          </div>
+          <form id="post-test-form" class="exam-form">
+            <div class="form-group">
+              <label for="post-name">เลือกชื่อ - นามสกุล</label>
+              <select id="post-name" name="name" required>
+                <option value="">-- เลือกชื่อของคุณ --</option>
+                <!-- Options populated dynamically -->
+              </select>
+            </div>
+            <button type="button" id="start-post-test" class="btn primary">เริ่มทำแบบทดสอบ</button>
+            <div id="post-test-container" class="test-container hidden">
+              <div id="post-questions" class="questions-list"></div>
+              <button type="submit" class="btn submit-btn">ส่งคำตอบ</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Results Tab -->
+        <section id="results" class="tab-content">
+          <div class="results-box">
+            <h2>ประมวลผลการสอบ</h2>
+            <div id="results-display" class="results-display">
+              <p>กรุณาทำแบบทดสอบเพื่อให้ระบบประมวลผล</p>
+            </div>
+            <button id="print-btn" class="btn secondary hidden" onclick="window.print()">พิมพ์รายงาน (PDF)</button>
+          </div>
+        </section>
+
+        <!-- Admin Tab -->
+        <section id="admin" class="tab-content">
+          <div class="admin-box">
+            <h2>ส่วนผู้ดูแลระบบ (Admin)</h2>
+            <div id="admin-login" class="form-group">
+              <label for="admin-pwd">รหัสผ่านปลดล็อคแท็บหลังเรียน</label>
+              <input type="password" id="admin-pwd" placeholder="ใส่รหัสผ่าน">
+              <button type="button" id="unlock-btn" class="btn primary" style="margin-top: 10px;">ปลดล็อค</button>
+            </div>
+            <div id="admin-dashboard" class="hidden">
+              <p>สถานะ: ปลดล็อคแท็บหลังเรียนเรียบร้อยแล้ว</p>
+              <a href="https://docs.google.com/spreadsheets/d/1z_ihu20eXG_DTFk3BBzXfPCGtbNR9dyeNfjCrdpN1lo/edit?usp=sharing" target="_blank" class="btn secondary">ดูข้อมูลใน Google Sheet</a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        - Watttab -
+      </footer>
+    </div>
+    
+    <!-- PDF Print Layout (Hidden in UI) -->
+    <div id="print-layout">
+      <div class="print-header">
+        <img src="/logo.png" alt="Logo">
+        <h1>สรุปผลการสอบ Nakae Dole Test</h1>
+      </div>
+      <div class="print-body">
+        <p><strong>ชื่อ-สกุล:</strong> <span id="print-name"></span></p>
+        <p><strong>คะแนนก่อนเรียน:</strong> <span id="print-pre-score"></span>/10</p>
+        <p><strong>คะแนนหลังเรียน:</strong> <span id="print-post-score">-</span>/10</p>
+      </div>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
