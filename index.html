@@ -74,11 +74,37 @@
         <!-- Results Tab -->
         <section id="results" class="tab-content">
           <div class="results-box">
-            <h2>ประมวลผลการสอบ</h2>
+            <h2>ประมวลผลการสอบ (Dashboard)</h2>
+            
+            <!-- Individual Summary -->
             <div id="results-display" class="results-display">
               <p>กรุณาทำแบบทดสอบเพื่อให้ระบบประมวลผล</p>
             </div>
-            <button id="print-btn" class="btn secondary hidden" onclick="window.print()">พิมพ์รายงาน (PDF)</button>
+
+            <!-- Overall Summary -->
+            <div id="overall-dashboard" class="overall-dashboard hidden" style="margin-top: 2rem;">
+              <h3 style="margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">ภาพรวมโครงการ (ทุกคน)</h3>
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-label">ผู้เข้าสอบทั้งหมด</div>
+                  <div class="stat-value" id="stat-total-users">0</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">เฉลี่ยก่อนเรียน</div>
+                  <div class="stat-value" id="stat-avg-pre">0.0</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">เฉลี่ยหลังเรียน</div>
+                  <div class="stat-value" id="stat-avg-post">0.0</div>
+                </div>
+                <div class="stat-card highlight-card">
+                  <div class="stat-label">พัฒนาการเฉลี่ย</div>
+                  <div class="stat-value" id="stat-avg-dev">0%</div>
+                </div>
+              </div>
+            </div>
+
+            <button id="print-btn" class="btn secondary hidden" style="margin-top: 2rem;" onclick="window.print()">พิมพ์รายงานตารางสรุปผล (PDF)</button>
           </div>
         </section>
 
@@ -93,6 +119,7 @@
             </div>
             <div id="admin-dashboard" class="hidden">
               <p>สถานะ: ปลดล็อคแท็บหลังเรียนเรียบร้อยแล้ว</p>
+              <button type="button" id="clear-data-btn" class="btn secondary" style="background-color: var(--danger-color); color: white; border: none; margin-bottom: 10px; margin-right: 10px;">ล้างข้อมูลผู้สอบในเครื่องนี้</button>
               <a href="https://docs.google.com/spreadsheets/d/1z_ihu20eXG_DTFk3BBzXfPCGtbNR9dyeNfjCrdpN1lo/edit?usp=sharing" target="_blank" class="btn secondary">ดูข้อมูลใน Google Sheet</a>
             </div>
           </div>
@@ -108,13 +135,37 @@
     <div id="print-layout">
       <div class="print-header">
         <img src="/logo.png" alt="Logo">
-        <h1>สรุปผลการสอบ Nakae Dole Test</h1>
+        <h1>ตารางสรุปผลการประเมินการเข้าอบรม</h1>
+        <p>หลักสูตร: Nakae Dole Test</p>
       </div>
-      <div class="print-body">
-        <p><strong>ชื่อ-สกุล:</strong> <span id="print-name"></span></p>
-        <p><strong>คะแนนก่อนเรียน:</strong> <span id="print-pre-score"></span>/10</p>
-        <p><strong>คะแนนหลังเรียน:</strong> <span id="print-post-score">-</span>/10</p>
+      
+      <div class="print-summary" style="margin-bottom: 20px;">
+        <strong>ผู้เข้าสอบทั้งหมด:</strong> <span id="print-total-users">0</span> คน | 
+        <strong>พัฒนาการเฉลี่ยรวม:</strong> <span id="print-avg-dev">0</span>%
       </div>
+
+      <table class="print-table">
+        <thead>
+          <tr>
+            <th rowspan="2" width="5%">ลำดับ</th>
+            <th rowspan="2" width="25%">ชื่อ-สกุล</th>
+            <th colspan="3" width="25%">ก่อนเรียน</th>
+            <th colspan="3" width="25%">หลังเรียน</th>
+            <th rowspan="2" width="20%">% พัฒนาการ</th>
+          </tr>
+          <tr>
+            <th>ตอน1 (5)</th>
+            <th>ตอน2 (5)</th>
+            <th>รวม (10)</th>
+            <th>ตอน1 (5)</th>
+            <th>ตอน2 (5)</th>
+            <th>รวม (10)</th>
+          </tr>
+        </thead>
+        <tbody id="print-table-body">
+          <!-- Rows dynamically injected -->
+        </tbody>
+      </table>
     </div>
 
     <script type="module" src="/main.js"></script>

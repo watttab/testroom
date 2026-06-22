@@ -55,7 +55,6 @@ function setupTabs() {
         return;
       }
       
-      // Warn if leaving active test
       if (isPreTestActive || isPostTestActive) {
         Swal.fire({
           title: 'คุณกำลังทำข้อสอบ',
@@ -72,6 +71,9 @@ function setupTabs() {
         });
       } else {
         switchTab(tab);
+        if(tab.getAttribute('data-target') === 'results') {
+           updateResultsDisplay();
+        }
       }
     });
   });
@@ -86,11 +88,11 @@ function switchTab(selectedTab) {
   document.getElementById(target).classList.add('active');
 }
 
-// Admin unlock logic
+// Admin logic
 const unlockBtn = document.getElementById('unlock-btn');
 unlockBtn.addEventListener('click', () => {
   const pwd = document.getElementById('admin-pwd').value;
-  if(pwd === 'admin1234') { // Simple password for demo
+  if(pwd === 'admin1234') { 
     localStorage.setItem('post_test_unlocked', 'true');
     document.getElementById('admin-login').classList.add('hidden');
     document.getElementById('admin-dashboard').classList.remove('hidden');
@@ -101,18 +103,40 @@ unlockBtn.addEventListener('click', () => {
   }
 });
 
+const clearDataBtn = document.getElementById('clear-data-btn');
+if(clearDataBtn) {
+  clearDataBtn.addEventListener('click', () => {
+    Swal.fire({
+      title: 'ล้างข้อมูลผู้สอบ?',
+      text: "รายชื่อและคะแนนสอบทั้งหมดในเบราว์เซอร์นี้จะถูกลบ",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ใช่, ลบเลย'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        // Keep only post_test_unlocked
+        const isUnlocked = localStorage.getItem('post_test_unlocked');
+        localStorage.clear();
+        if(isUnlocked) localStorage.setItem('post_test_unlocked', 'true');
+        loadPostTestNames();
+        updateResultsDisplay();
+        Swal.fire('ลบข้อมูลแล้ว', '', 'success');
+      }
+    });
+  });
+}
+
 function isPostTestUnlocked() {
   return localStorage.getItem('post_test_unlocked') === 'true';
 }
 
-// Check on load if unlocked
 if(isPostTestUnlocked()) {
   document.getElementById('admin-login').classList.add('hidden');
   document.getElementById('admin-dashboard').classList.remove('hidden');
   document.getElementById('tab-post-test').innerHTML = 'หลังเรียน <span class="lock-icon">🔓</span>';
 }
 
-// Load names from LocalStorage for Post-test dropdown
+// Load names
 function loadPostTestNames() {
   const names = JSON.parse(localStorage.getItem('pre_test_names') || '[]');
   postNameSelect.innerHTML = '<option value="">-- เลือกชื่อของคุณ --</option>';
@@ -131,13 +155,10 @@ function renderQuestions(container, prefix) {
   shuffledQuestions.forEach((q, index) => {
     const qDiv = document.createElement('div');
     qDiv.className = 'question-item';
-    
     let html = `<div class="question-text">${index + 1}. ${q.question.replace(/^\d+\.\s*/, '')}</div><div class="options">`;
-    
-    // Shuffle options
     const shuffledOptions = shuffle([...q.options]);
     shuffledOptions.forEach(opt => {
-      const optValue = opt.charAt(0); // ก, ข, ค, ง
+      const optValue = opt.charAt(0);
       html += `
         <label class="option-label">
           <input type="radio" name="${prefix}_q_${q.id}" value="${optValue}" required>
@@ -145,31 +166,26 @@ function renderQuestions(container, prefix) {
         </label>
       `;
     });
-    
     html += `</div>`;
     qDiv.innerHTML = html;
     container.appendChild(qDiv);
   });
 }
 
-// Pre-test Logic
+// Pre-test
 preStartBtn.addEventListener('click', () => {
   const name = document.getElementById('pre-name').value.trim();
   if(!name) {
     Swal.fire('แจ้งเตือน', 'กรุณากรอกชื่อ-นามสกุล', 'warning');
     return;
   }
-  
   preStartBtn.classList.add('hidden');
   document.getElementById('pre-name').readOnly = true;
   preTestContainer.classList.remove('hidden');
-  
   renderQuestions(preQuestionsContainer, 'pre');
-  
   isPreTestActive = true;
   preTestTime = 8 * 60;
   updateTimerDisplay();
-  
   timerInterval = setInterval(() => {
     preTestTime--;
     updateTimerDisplay();
@@ -188,17 +204,14 @@ function updateTimerDisplay() {
   preTimerDisplay.textContent = `${m}:${s}`;
 }
 
-// Submit Pre-test
 preTestForm.addEventListener('submit', (e) => {
   e.preventDefault();
   clearInterval(timerInterval);
   isPreTestActive = false;
-  
   const formData = new FormData(preTestForm);
-  const name = formData.get('name');
-  const score = calculateScore(formData, 'pre');
+  const name = document.getElementById('pre-name').value.trim();
+  const scoreData = calculateScore(formData, 'pre');
   
-  // Save to LocalStorage for Post-Test dropdown
   const names = JSON.parse(localStorage.getItem('pre_test_names') || '[]');
   if(!names.includes(name)) {
     names.push(name);
@@ -206,111 +219,189 @@ preTestForm.addEventListener('submit', (e) => {
     loadPostTestNames();
   }
   
-  // Save Score
-  localStorage.setItem(`pre_score_${name}`, score);
-  document.getElementById('print-name').textContent = name;
-  document.getElementById('print-pre-score').textContent = score;
+  localStorage.setItem(`pre_score_${name}`, JSON.stringify(scoreData));
+  sendDataToGAS('Pre-test', name, scoreData.total);
   
-  sendDataToGAS('Pre-test', name, score);
-  
-  Swal.fire('สำเร็จ', `คุณได้คะแนน ${score}/10`, 'success').then(() => {
+  Swal.fire('สำเร็จ', `คุณได้คะแนน ${scoreData.total}/10`, 'success').then(() => {
     preTestForm.reset();
     document.getElementById('pre-name').readOnly = false;
     preStartBtn.classList.remove('hidden');
     preTestContainer.classList.add('hidden');
-    switchTab(tabs[2]); // Go to Results
+    switchTab(tabs[2]); // Results
     updateResultsDisplay(name);
   });
 });
 
-// Post-test Logic
+// Post-test
 postStartBtn.addEventListener('click', () => {
   const name = postNameSelect.value;
   if(!name) {
     Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อ-นามสกุล', 'warning');
     return;
   }
-  
   postStartBtn.classList.add('hidden');
   postNameSelect.disabled = true;
   postTestContainer.classList.remove('hidden');
-  
   renderQuestions(postQuestionsContainer, 'post');
   isPostTestActive = true;
 });
 
-// Submit Post-test
 postTestForm.addEventListener('submit', (e) => {
   e.preventDefault();
   isPostTestActive = false;
-  
   const formData = new FormData(postTestForm);
   const name = postNameSelect.value;
-  const score = calculateScore(formData, 'post');
+  const scoreData = calculateScore(formData, 'post');
   
-  // Save Score
-  localStorage.setItem(`post_score_${name}`, score);
-  document.getElementById('print-post-score').textContent = score;
+  localStorage.setItem(`post_score_${name}`, JSON.stringify(scoreData));
+  sendDataToGAS('Post-test', name, scoreData.total);
   
-  sendDataToGAS('Post-test', name, score);
-  
-  Swal.fire('สำเร็จ', `คุณได้คะแนน ${score}/10`, 'success').then(() => {
+  Swal.fire('สำเร็จ', `คุณได้คะแนน ${scoreData.total}/10`, 'success').then(() => {
     postTestForm.reset();
     postNameSelect.disabled = false;
     postStartBtn.classList.remove('hidden');
     postTestContainer.classList.add('hidden');
-    switchTab(tabs[2]); // Go to Results
+    switchTab(tabs[2]); // Results
     updateResultsDisplay(name);
   });
 });
 
-// Calculate Score
+// Calculate Detailed Score
 function calculateScore(formData, prefix) {
-  let score = 0;
+  let score = { total: 0, p1: 0, p2: 0 };
   questionsData.forEach(q => {
     const ans = formData.get(`${prefix}_q_${q.id}`);
     if(ans === q.answer) {
-      score++;
+      score.total++;
+      if(q.part === 1) score.p1++;
+      if(q.part === 2) score.p2++;
     }
   });
   return score;
 }
 
-// Update Results Display
-function updateResultsDisplay(name) {
-  const preScore = localStorage.getItem(`pre_score_${name}`) || '-';
-  const postScore = localStorage.getItem(`post_score_${name}`) || '-';
+// Development % calc
+function calcDev(pre, post) {
+  if (pre === '-' || post === '-') return '-';
+  if (pre === 0) {
+    return post > 0 ? 100 : 0; // Special case: pre=0
+  }
+  return (((post - pre) / pre) * 100).toFixed(1);
+}
+
+// Update Results and Print Dashboard
+function updateResultsDisplay(currentName = null) {
+  const names = JSON.parse(localStorage.getItem('pre_test_names') || '[]');
   
-  document.getElementById('results-display').innerHTML = `
-    <h3>ชื่อ-สกุล: ${name}</h3>
-    <p>คะแนนก่อนเรียน: ${preScore} / 10</p>
-    <p>คะแนนหลังเรียน: ${postScore} / 10</p>
-  `;
+  if (names.length === 0) {
+    document.getElementById('results-display').innerHTML = '<p>ยังไม่มีผู้เข้าสอบ</p>';
+    document.getElementById('overall-dashboard').classList.add('hidden');
+    document.getElementById('print-btn').classList.add('hidden');
+    return;
+  }
+
+  // Current User Individual View
+  if (currentName) {
+    let preObj = JSON.parse(localStorage.getItem(`pre_score_${currentName}`) || '{"total":"-","p1":"-","p2":"-"}');
+    let postObj = JSON.parse(localStorage.getItem(`post_score_${currentName}`) || '{"total":"-","p1":"-","p2":"-"}');
+    
+    let devPercent = calcDev(preObj.total, postObj.total);
+    let devText = devPercent !== '-' ? `${devPercent}%` : '-';
+    let devColor = devPercent > 0 ? 'var(--success-color)' : (devPercent < 0 ? 'var(--danger-color)' : 'var(--text-color)');
+
+    document.getElementById('results-display').innerHTML = `
+      <h3>ผลการทดสอบ: ${currentName}</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <tr style="border-bottom: 1px solid var(--glass-border);">
+          <th style="padding: 8px; text-align: left;">ส่วนข้อสอบ</th>
+          <th style="padding: 8px; text-align: center;">ก่อนเรียน</th>
+          <th style="padding: 8px; text-align: center;">หลังเรียน</th>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <td style="padding: 8px;">ตอนที่ 1: ความรู้ความเข้าใจ</td>
+          <td style="padding: 8px; text-align: center;">${preObj.p1} / 5</td>
+          <td style="padding: 8px; text-align: center;">${postObj.p1} / 5</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <td style="padding: 8px;">ตอนที่ 2: การนำไปใช้</td>
+          <td style="padding: 8px; text-align: center;">${preObj.p2} / 5</td>
+          <td style="padding: 8px; text-align: center;">${postObj.p2} / 5</td>
+        </tr>
+        <tr style="font-weight: bold;">
+          <td style="padding: 8px; color: var(--primary-color);">รวมทั้งหมด</td>
+          <td style="padding: 8px; text-align: center;">${preObj.total} / 10</td>
+          <td style="padding: 8px; text-align: center;">${postObj.total} / 10</td>
+        </tr>
+      </table>
+      <div style="margin-top: 15px; font-size: 1.1rem;">
+        <strong>การพัฒนา: </strong> <span style="color: ${devColor}; font-weight: bold;">${devText}</span>
+      </div>
+    `;
+  }
+
+  // Overall Dashboard & Print Table
+  let sumPre = 0, sumPost = 0;
+  let printRowsHTML = '';
+  let countCompleted = 0; // count people who did both pre and post
+  
+  names.forEach((n, idx) => {
+    let preObj = JSON.parse(localStorage.getItem(`pre_score_${n}`) || '{"total":"-","p1":"-","p2":"-"}');
+    let postObj = JSON.parse(localStorage.getItem(`post_score_${n}`) || '{"total":"-","p1":"-","p2":"-"}');
+    
+    let devPercent = calcDev(preObj.total, postObj.total);
+    let devText = devPercent !== '-' ? `${devPercent}%` : '-';
+    
+    if(preObj.total !== '-' && postObj.total !== '-') {
+      sumPre += parseInt(preObj.total);
+      sumPost += parseInt(postObj.total);
+      countCompleted++;
+    } else if (preObj.total !== '-') {
+      sumPre += parseInt(preObj.total); // Only pre test done
+    }
+
+    // Build print table row
+    printRowsHTML += `
+      <tr>
+        <td>${idx + 1}</td>
+        <td style="text-align: left;">${n}</td>
+        <td>${preObj.p1}</td>
+        <td>${preObj.p2}</td>
+        <td>${preObj.total}</td>
+        <td>${postObj.p1}</td>
+        <td>${postObj.p2}</td>
+        <td>${postObj.total}</td>
+        <td>${devText}</td>
+      </tr>
+    `;
+  });
+
+  document.getElementById('print-table-body').innerHTML = printRowsHTML;
+  document.getElementById('print-total-users').textContent = names.length;
+
+  document.getElementById('overall-dashboard').classList.remove('hidden');
   document.getElementById('print-btn').classList.remove('hidden');
+
+  let avgPre = (sumPre / names.length).toFixed(1);
+  let avgPost = countCompleted > 0 ? (sumPost / countCompleted).toFixed(1) : '0.0';
+  let overallDev = countCompleted > 0 ? calcDev(avgPre, avgPost) : '-';
   
-  document.getElementById('print-name').textContent = name;
-  document.getElementById('print-pre-score').textContent = preScore;
-  document.getElementById('print-post-score').textContent = postScore;
+  document.getElementById('stat-total-users').textContent = names.length;
+  document.getElementById('stat-avg-pre').textContent = avgPre;
+  document.getElementById('stat-avg-post').textContent = avgPost;
+  document.getElementById('stat-avg-dev').textContent = overallDev !== '-' ? overallDev + '%' : '-';
+  
+  document.getElementById('print-avg-dev').textContent = overallDev;
 }
 
 // Anti-cheat
 function handleVisibilityChange() {
   if (document.hidden && (isPreTestActive || isPostTestActive)) {
-    Swal.fire({
-      icon: 'error',
-      title: 'ทุจริต!',
-      text: 'คุณกำลังออกจากระบบสอบ! ระบบได้บันทึกการกระทำนี้ไว้'
-    });
+    Swal.fire({ icon: 'error', title: 'ทุจริต!', text: 'คุณกำลังออกจากระบบสอบ! ระบบได้บันทึกการกระทำนี้ไว้' });
   }
 }
-
 function handleBlur() {
   if (isPreTestActive || isPostTestActive) {
-    Swal.fire({
-      icon: 'error',
-      title: 'แจ้งเตือน!',
-      text: 'คุณกำลังออกจากหน้าจอระบบสอบ!'
-    });
+    Swal.fire({ icon: 'error', title: 'แจ้งเตือน!', text: 'คุณกำลังออกจากหน้าจอระบบสอบ!' });
   }
 }
 
@@ -318,11 +409,9 @@ function endTestEarly() {
   clearInterval(timerInterval);
   isPreTestActive = false;
   isPostTestActive = false;
-  
   preStartBtn.classList.remove('hidden');
   document.getElementById('pre-name').readOnly = false;
   preTestContainer.classList.add('hidden');
-  
   postStartBtn.classList.remove('hidden');
   postNameSelect.disabled = false;
   postTestContainer.classList.add('hidden');
@@ -340,11 +429,8 @@ function sendDataToGAS(type, name, score) {
     method: 'POST',
     mode: 'no-cors',
     body: data
-  }).then(() => {
-    console.log('Data sent to GAS successfully');
-  }).catch(err => {
-    console.error('Error sending to GAS', err);
-  });
+  }).then(() => console.log('Data sent to GAS successfully'))
+    .catch(err => console.error('Error sending to GAS', err));
 }
 
 init();
