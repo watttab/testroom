@@ -24,6 +24,7 @@ let isPreTestActive = false;
 let isPostTestActive = false;
 let preTestTime = 8 * 60; // 8 minutes
 let timerInterval;
+let postTestUnlocked = false;
 
 // Initialize
 function init() {
@@ -93,7 +94,7 @@ const unlockBtn = document.getElementById('unlock-btn');
 unlockBtn.addEventListener('click', () => {
   const pwd = document.getElementById('admin-pwd').value;
   if(pwd === 'admin1234') { 
-    localStorage.setItem('post_test_unlocked', 'true');
+    postTestUnlocked = true;
     document.getElementById('admin-login').classList.add('hidden');
     document.getElementById('admin-dashboard').classList.remove('hidden');
     document.getElementById('tab-post-test').innerHTML = 'หลังเรียน <span class="lock-icon">🔓</span>';
@@ -103,37 +104,8 @@ unlockBtn.addEventListener('click', () => {
   }
 });
 
-const clearDataBtn = document.getElementById('clear-data-btn');
-if(clearDataBtn) {
-  clearDataBtn.addEventListener('click', () => {
-    Swal.fire({
-      title: 'ล้างข้อมูลผู้สอบ?',
-      text: "รายชื่อและคะแนนสอบทั้งหมดในเบราว์เซอร์นี้จะถูกลบ",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'ใช่, ลบเลย'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        // Keep only post_test_unlocked
-        const isUnlocked = localStorage.getItem('post_test_unlocked');
-        localStorage.clear();
-        if(isUnlocked) localStorage.setItem('post_test_unlocked', 'true');
-        loadPostTestNames();
-        updateResultsDisplay();
-        Swal.fire('ลบข้อมูลแล้ว', '', 'success');
-      }
-    });
-  });
-}
-
 function isPostTestUnlocked() {
-  return localStorage.getItem('post_test_unlocked') === 'true';
-}
-
-if(isPostTestUnlocked()) {
-  document.getElementById('admin-login').classList.add('hidden');
-  document.getElementById('admin-dashboard').classList.remove('hidden');
-  document.getElementById('tab-post-test').innerHTML = 'หลังเรียน <span class="lock-icon">🔓</span>';
+  return postTestUnlocked;
 }
 
 // Load names
