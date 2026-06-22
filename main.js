@@ -370,14 +370,22 @@ function updateResultsDisplay(currentName = null) {
     let preObj = u.pre || {total: '-', p1: '-', p2: '-'};
     let postObj = u.post || {total: '-', p1: '-', p2: '-'};
     
-    let devPercent = calcDev(preObj.total, postObj.total);
+    // Ensure p1, p2, total are numbers or '-'
+    let preP1 = preObj.p1 !== undefined && preObj.p1 !== '' ? preObj.p1 : '-';
+    let preP2 = preObj.p2 !== undefined && preObj.p2 !== '' ? preObj.p2 : '-';
+    let preTotal = preObj.total !== undefined && preObj.total !== '' ? preObj.total : '-';
+    let postP1 = postObj.p1 !== undefined && postObj.p1 !== '' ? postObj.p1 : '-';
+    let postP2 = postObj.p2 !== undefined && postObj.p2 !== '' ? postObj.p2 : '-';
+    let postTotal = postObj.total !== undefined && postObj.total !== '' ? postObj.total : '-';
+
+    let devPercent = calcDev(preTotal, postTotal);
     let devText = devPercent !== '-' ? `${devPercent}%` : '-';
     
-    if(preObj.total !== '-') {
-      sumPre += parseInt(preObj.total);
+    if(preTotal !== '-' && !isNaN(preTotal)) {
+      sumPre += parseInt(preTotal) || 0;
       countPre++;
-      if(postObj.total !== '-') {
-        sumPost += parseInt(postObj.total);
+      if(postTotal !== '-' && !isNaN(postTotal)) {
+        sumPost += parseInt(postTotal) || 0;
         countCompleted++;
       }
     }
@@ -387,12 +395,12 @@ function updateResultsDisplay(currentName = null) {
       <tr>
         <td>${idx + 1}</td>
         <td style="text-align: left;">${u.name}</td>
-        <td>${preObj.p1}</td>
-        <td>${preObj.p2}</td>
-        <td>${preObj.total}</td>
-        <td>${postObj.p1}</td>
-        <td>${postObj.p2}</td>
-        <td>${postObj.total}</td>
+        <td>${preP1}</td>
+        <td>${preP2}</td>
+        <td>${preTotal}</td>
+        <td>${postP1}</td>
+        <td>${postP2}</td>
+        <td>${postTotal}</td>
         <td>${devText}</td>
       </tr>
     `;
