@@ -161,6 +161,32 @@ unlockBtn.addEventListener('click', async () => {
   }
 });
 
+const lockBtn = document.getElementById('lock-btn');
+if(lockBtn) {
+  lockBtn.addEventListener('click', async () => {
+    Swal.fire({
+      title: 'กำลังล็อคข้อสอบ',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+    
+    const data = new FormData();
+    data.append('action', 'lock');
+    
+    try {
+      await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: data });
+      postTestUnlocked = false;
+      document.getElementById('admin-login').classList.remove('hidden');
+      document.getElementById('admin-dashboard').classList.add('hidden');
+      document.getElementById('admin-pwd').value = '';
+      document.getElementById('tab-post-test').innerHTML = 'หลังเรียน <span class="lock-icon">🔒</span>';
+      Swal.fire('สำเร็จ', 'ล็อคแท็บหลังเรียนเรียบร้อยแล้ว!', 'success');
+    } catch(err) {
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+    }
+  });
+}
+
 function isPostTestUnlocked() {
   return postTestUnlocked;
 }

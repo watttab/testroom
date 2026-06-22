@@ -14,6 +14,15 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
+    // ถ้าได้รับคำสั่งให้ล็อคข้อสอบ
+    if (action === "lock") {
+      PropertiesService.getScriptProperties().setProperty("isPostTestUnlocked", "false");
+      return ContentService.createTextOutput(JSON.stringify({
+        "status": "success", 
+        "message": "Post-test locked!"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
     // ถ้าได้รับคำสั่งให้บันทึกคะแนน
     const sheet = SpreadsheetApp.openById(SHEET_ID).getActiveSheet();
     const type = e.parameter.type || "Unknown"; // Pre-test หรือ Post-test
